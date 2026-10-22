@@ -11,7 +11,8 @@ The Ed25519 keys of Update Prompt's tokens, for Go services: reading them, their
 Verify (user-management-service, usage-service, workspace-service):
 
 ```go
-userKey, err := jwtkeys.LoadPublicKey(os.Getenv("JWT_USER_PUBLIC_KEY"), os.Getenv("JWT_USER_PUBLIC_KEY_PATH"))
+// The value, or else the path with the service's own default
+userKey, err := jwtkeys.LoadPublicKey(config.JWTUserPublicKey, config.JWTUserPublicKeyPath)
 if err != nil {
 	return err // the service doesn't start without its key
 }
@@ -22,7 +23,10 @@ token, err := jwt.Parse(tokenString, jwtkeys.Keyfunc(userKey), jwtkeys.OnlyEdDSA
 Sign (authentication-service):
 
 ```go
-serviceKey, err := jwtkeys.LoadPrivateKey(os.Getenv("JWT_SERVICE_PRIVATE_KEY"), os.Getenv("JWT_SERVICE_PRIVATE_KEY_PATH"))
+serviceKey, err := jwtkeys.LoadPrivateKey(config.JWTServicePrivateKey, config.JWTServicePrivateKeyPath)
+if err != nil {
+	return err // load at start, so a missing key stops the service
+}
 signed, err := serviceKey.Sign(claims) // EdDSA, kid = serviceKey.ID
 ```
 
@@ -30,12 +34,12 @@ signed, err := serviceKey.Sign(claims) // EdDSA, kid = serviceKey.ID
 
 | Name | What it does |
 | --- | --- |
-| `LoadPublicKey(value, path)`, `LoadPrivateKey(value, path)` | Read a PEM key from `value` (such as from a secret store), or when it is empty from the file at `path`. `ErrKeyMissing` when neither gives one |
-| `ParsePublicKey(pem)`, `ParsePrivateKey(pem)` | Parse a PKIX public or PKCS #8 private key, as `openssl` writes them. `ErrNotEd25519` for another kind of key, such as RSA |
+| `LoadPublicKey(value, path)`, `LoadPrivateKey(value, path)` | Read a PEM key from `value` (such as from a secret store), or when it is empty from the file at `path`. `ErrKeyMissing` when there is no value and no file at the path; another error when the file can't be read |
+| `ParsePublicKey(pem)`, `ParsePrivateKey(pem)` | Parse a `PUBLIC KEY` (PKIX) or `PRIVATE KEY` (PKCS #8) block, as `openssl` writes them. `ErrNotEd25519` for another kind of key, such as RSA |
 | `PublicKey`, `PrivateKey` | A key and its ID. `PrivateKey.Public()` gives the public half |
 | `Thumbprint(key)` | The key's RFC 7638 thumbprint, its ID |
-| `PrivateKey.Sign(claims)` | A JWT signed with `EdDSA`, the key's ID in `kid` |
-| `Keyfunc(keys...)` | For `jwt.Parse`: the key the token's `kid` names, among `keys`, else `ErrUnknownKey`. More than one key accepts an old and a new key while a key is rotated |
+| `PrivateKey.Sign(claims)` | A JWT signed with `EdDSA`, the key's ID in `kid`. `ErrInvalidKey` for a key not made by this package, such as a zero `PrivateKey` |
+| `Keyfunc(keys...)` | For `jwt.Parse`: the key the token's `kid` names, among `keys`, else `ErrUnknownKey` (also for no `kid`). `ErrNotEdDSA` for another algorithm. More than one key accepts an old and a new key while a key is rotated |
 | `OnlyEdDSA()` | The `jwt.Parse` option that refuses every other `alg`, such as `RS256` or `none` |
 
 ## Keys
