@@ -84,6 +84,48 @@ func TestKeyfuncRefusesOtherTokens(t *testing.T) {
 	}
 }
 
+// Given a token parsed without OnlyEdDSA
+// When it is signed with HS256 or RS256 and names the accepted key
+// Then Keyfunc itself refuses it with ErrNotEdDSA
+func TestKeyfuncRefusesOtherAlgorithms(t *testing.T) {
+	accepted := newPrivateKey(t)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate an RSA key: %v", err)
+	}
+	tokens := map[string]string{
+		"HS256": sign(t, jwt.SigningMethodHS256, []byte(accepted.Public().Key), accepted.ID),
+		"RS256": sign(t, jwt.SigningMethodRS256, rsaKey, accepted.ID),
+	}
+	for name, tokenString := range tokens {
+		t.Run(name, func(t *testing.T) {
+			if _, err := jwt.Parse(tokenString, Keyfunc(accepted.Public())); !errors.Is(err, ErrNotEdDSA) {
+				t.Errorf("Expected ErrNotEdDSA, got %v", err)
+			}
+		})
+	}
+}
+
+// Given a zero PrivateKey, as from a load whose error was ignored
+// When it signs
+// Then it fails with ErrInvalidKey rather than panicking
+func TestSignRefusesAnInvalidKey(t *testing.T) {
+	if _, err := (PrivateKey{}).Sign(claims()); !errors.Is(err, ErrInvalidKey) {
+		t.Errorf("Expected ErrInvalidKey, got %v", err)
+	}
+}
+
+// Given a token without a kid, and an accepted key with an empty ID
+// When the token is parsed
+// Then it is refused with ErrUnknownKey
+func TestKeyfuncRefusesNoKidEvenForAnEmptyID(t *testing.T) {
+	accepted := newPrivateKey(t)
+	tokenString := sign(t, jwt.SigningMethodEdDSA, accepted.Key, "")
+	if _, err := jwt.Parse(tokenString, Keyfunc(PublicKey{}), OnlyEdDSA()); !errors.Is(err, ErrUnknownKey) {
+		t.Errorf("Expected ErrUnknownKey, got %v", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

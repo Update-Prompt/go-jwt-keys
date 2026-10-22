@@ -48,9 +48,9 @@ func TestParseKeys(t *testing.T) {
 	}
 }
 
-// Given RSA keys, and content that isn't PEM
+// Given RSA keys, content that isn't PEM, and a public key given as a private key
 // When they are parsed
-// Then RSA keys are refused with ErrNotEd25519, and the other content with an error
+// Then RSA keys are refused with ErrNotEd25519, and the others with an error
 func TestParseRefusesOtherKeys(t *testing.T) {
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -76,6 +76,10 @@ func TestParseRefusesOtherKeys(t *testing.T) {
 	}
 	if _, err := ParsePrivateKey(encodePEM("PRIVATE KEY", []byte("not DER"))); err == nil {
 		t.Error("Expected an error for a PEM block that isn't a key")
+	}
+	public, _ := newKeyPair(t)
+	if _, err := ParsePrivateKey(publicPEM(t, public)); err == nil {
+		t.Error("Expected an error for a public key given as the private key")
 	}
 }
 
@@ -123,6 +127,16 @@ func TestLoadMissingKeys(t *testing.T) {
 				t.Errorf("Expected ErrKeyMissing for the private key, got %v", err)
 			}
 		})
+	}
+}
+
+// Given a key file the service may not read
+// When the key is loaded
+// Then it fails, but not with ErrKeyMissing, so the error says what is wrong
+func TestLoadUnreadableKey(t *testing.T) {
+	// A directory can't be read as a file, whoever runs the test
+	if _, err := LoadPublicKey("", t.TempDir()); err == nil || errors.Is(err, ErrKeyMissing) {
+		t.Errorf("Expected a read error other than ErrKeyMissing, got %v", err)
 	}
 }
 
