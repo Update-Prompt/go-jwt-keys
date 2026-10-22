@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 )
 
@@ -60,7 +61,7 @@ func Thumbprint(key ed25519.PublicKey) string {
 
 // ParsePublicKey parses an Ed25519 public key in PEM format (PKIX, "PUBLIC KEY")
 func ParsePublicKey(pemContent []byte) (PublicKey, error) {
-	der, err := decodePEM(pemContent)
+	der, err := decodePEM(pemContent, "PUBLIC KEY")
 	if err != nil {
 		return PublicKey{}, err
 	}
@@ -78,7 +79,7 @@ func ParsePublicKey(pemContent []byte) (PublicKey, error) {
 // ParsePrivateKey parses an Ed25519 private key in PEM format (PKCS #8, "PRIVATE KEY"),
 // as `openssl genpkey -algorithm ed25519` writes it
 func ParsePrivateKey(pemContent []byte) (PrivateKey, error) {
-	der, err := decodePEM(pemContent)
+	der, err := decodePEM(pemContent, "PRIVATE KEY")
 	if err != nil {
 		return PrivateKey{}, err
 	}
@@ -121,16 +122,24 @@ func read(value, path string) ([]byte, error) {
 		return nil, ErrKeyMissing
 	}
 	content, err := os.ReadFile(path)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: %w", ErrKeyMissing, err)
+	}
+	if err != nil {
+		// Such as a file the service's user may not read
+		return nil, fmt.Errorf("failed to read the key: %w", err)
 	}
 	return content, nil
 }
 
-func decodePEM(content []byte) ([]byte, error) {
+// decodePEM returns the DER of the first PEM block, which must be of the type
+func decodePEM(content []byte, blockType string) ([]byte, error) {
 	block, _ := pem.Decode(content)
 	if block == nil {
 		return nil, errors.New("key isn't in PEM format")
+	}
+	if block.Type != blockType {
+		return nil, fmt.Errorf("expected a %s PEM block, got %s", blockType, block.Type)
 	}
 	return block.Bytes, nil
 }
