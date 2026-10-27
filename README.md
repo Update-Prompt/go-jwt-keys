@@ -2,9 +2,9 @@
 
 The Ed25519 keys of Update Prompt's tokens, for Go services: reading them, their key IDs, signing with them, and checking which key a token names.
 
-- authentication-service signs every token with `EdDSA` (Ed25519) and puts the signing key's ID in the token's `kid` header.
+- The auth services (user-auth-service, api-auth-service and service-auth-service, in [auth-services](https://github.com/Update-Prompt/auth-services)) sign every token with `EdDSA` (Ed25519) and put the signing key's ID in the token's `kid` header.
 - The ID is the key's [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) JWK thumbprint. The signer and every verifier compute it from the key, so nothing configures it.
-- A verifier accepts only `EdDSA`, and only tokens whose `kid` names a key it trusts for that kind of token. Which keys sign which tokens is in [authentication-service's README](https://github.com/Update-Prompt/authentication-service#tokens-and-claims).
+- A verifier accepts only `EdDSA`, and only tokens whose `kid` names a key it trusts for that kind of token. Which keys sign which tokens is in [auth-services' README](https://github.com/Update-Prompt/auth-services#tokens-and-claims).
 
 ## Use
 
@@ -20,7 +20,7 @@ if err != nil {
 token, err := jwt.Parse(tokenString, jwtkeys.Keyfunc(userKey), jwtkeys.OnlyEdDSA(), jwt.WithExpirationRequired())
 ```
 
-Sign (authentication-service):
+Sign (the auth services):
 
 ```go
 serviceKey, err := jwtkeys.LoadPrivateKey(config.JWTServicePrivateKey, config.JWTServicePrivateKeyPath)

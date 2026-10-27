@@ -1,9 +1,9 @@
 // Package jwtkeys holds the Ed25519 keys of Update Prompt's tokens: reading them, their
 // key IDs, signing with them and checking which key a token names.
 //
-// authentication-service signs every token with EdDSA (Ed25519) and puts the signing
-// key's ID in the token's kid header. The ID is the key's RFC 7638 JWK thumbprint, so
-// the signer and every verifying service compute it from the key: nothing configures it.
+// The auth services sign every token with EdDSA (Ed25519) and put the signing key's ID
+// in the token's kid header. The ID is the key's RFC 7638 JWK thumbprint, so the signer
+// and every verifying service compute it from the key: nothing configures it.
 package jwtkeys
 
 import (
