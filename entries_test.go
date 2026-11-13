@@ -168,6 +168,22 @@ func TestSignEntryRefusesASignatureFieldAndAnInvalidKey(t *testing.T) {
 	}
 }
 
+// Given an entry {"a": "bc"}, and an entry {"ab": "c"} that joins to the same text
+// When the second is verified with the first's signature
+// Then it is refused, so the name and value lengths are part of what is signed
+func TestVerifyEntryRefusesMovedBytes(t *testing.T) {
+	key := newPrivateKey(t)
+	signed, err := key.SignEntry("workspace-service", "workspace-events", map[string]string{"a": "bc"})
+	if err != nil {
+		t.Fatalf("Failed to sign: %v", err)
+	}
+	moved := map[string]string{"ab": "c", SignatureField: signed[SignatureField]}
+
+	if err := VerifyEntry("workspace-service", "workspace-events", moved, key.Public()); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("Expected ErrBadSignature, got %v", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
