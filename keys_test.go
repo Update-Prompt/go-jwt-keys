@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -137,6 +138,30 @@ func TestLoadUnreadableKey(t *testing.T) {
 	// A directory can't be read as a file, whoever runs the test
 	if _, err := LoadPublicKey("", t.TempDir()); err == nil || errors.Is(err, ErrKeyMissing) {
 		t.Errorf("Expected a read error other than ErrKeyMissing, got %v", err)
+	}
+}
+
+// Given an Ed25519 key in a PEM block of another type
+// When it is parsed
+// Then it is refused with an error naming the expected block type
+func TestParseRefusesOtherPEMBlockTypes(t *testing.T) {
+	public, private := newKeyPair(t)
+	privateDER, err := x509.MarshalPKCS8PrivateKey(private)
+	if err != nil {
+		t.Fatalf("Failed to encode the private key: %v", err)
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(public)
+	if err != nil {
+		t.Fatalf("Failed to encode the public key: %v", err)
+	}
+
+	_, err = ParsePrivateKey(encodePEM("ENCRYPTED PRIVATE KEY", privateDER))
+	if err == nil || !strings.Contains(err.Error(), "expected a PRIVATE KEY PEM block") {
+		t.Errorf("Expected the private key's block type to be refused, got %v", err)
+	}
+	_, err = ParsePublicKey(encodePEM("CERTIFICATE", publicDER))
+	if err == nil || !strings.Contains(err.Error(), "expected a PUBLIC KEY PEM block") {
+		t.Errorf("Expected the public key's block type to be refused, got %v", err)
 	}
 }
 

@@ -168,6 +168,35 @@ func TestSignEntryRefusesASignatureFieldAndAnInvalidKey(t *testing.T) {
 	}
 }
 
+// Given signed entries, and for each an entry whose names and values join to the same
+// text: {"a": "bc"} and {"ab": "c"}, and {"a": "b\nc\nd"} and {"a": "b", "c": "d"}
+// When each signed entry and its look-alike are verified with the same signature
+// Then the signed entry is valid and the look-alike is refused, so the name and value
+// lengths are part of what is signed, not only their bytes
+func TestVerifyEntryRefusesMovedBytes(t *testing.T) {
+	key := newPrivateKey(t)
+	cases := map[string]struct{ signed, moved map[string]string }{
+		"a byte moved into the name": {map[string]string{"a": "bc"}, map[string]string{"ab": "c"}},
+		"a field hidden in a value": {
+			map[string]string{"a": "b\nc\nd"}, map[string]string{"a": "b", "c": "d"}},
+	}
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			signed, err := key.SignEntry("workspace-service", "workspace-events", test.signed)
+			if err != nil {
+				t.Fatalf("Failed to sign: %v", err)
+			}
+			if err := VerifyEntry("workspace-service", "workspace-events", signed, key.Public()); err != nil {
+				t.Fatalf("Expected the signed entry to be valid, got %v", err)
+			}
+			test.moved[SignatureField] = signed[SignatureField]
+			if err := VerifyEntry("workspace-service", "workspace-events", test.moved, key.Public()); !errors.Is(err, ErrBadSignature) {
+				t.Errorf("Expected ErrBadSignature, got %v", err)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
