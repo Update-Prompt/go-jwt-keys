@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -140,6 +141,23 @@ func TestLoadUnreadableKey(t *testing.T) {
 	}
 }
 
+// Given an Ed25519 key in a PEM block of another type
+// When it is parsed
+// Then it is refused with an error naming the expected block type
+func TestParseRefusesOtherPEMBlockTypes(t *testing.T) {
+	public, private := newKeyPair(t)
+	privateDER, publicDER := pemBytes(t, privatePEM(t, private)), pemBytes(t, publicPEM(t, public))
+
+	_, err := ParsePrivateKey(encodePEM("ENCRYPTED PRIVATE KEY", privateDER))
+	if err == nil || !strings.Contains(err.Error(), "expected a PRIVATE KEY PEM block") {
+		t.Errorf("Expected the private key's block type to be refused, got %v", err)
+	}
+	_, err = ParsePublicKey(encodePEM("CERTIFICATE", publicDER))
+	if err == nil || !strings.Contains(err.Error(), "expected a PUBLIC KEY PEM block") {
+		t.Errorf("Expected the public key's block type to be refused, got %v", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -180,4 +198,14 @@ func writeFile(t *testing.T, path string, content []byte) {
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatalf("Failed to write %s: %v", path, err)
 	}
+}
+
+// pemBytes returns the bytes of the first PEM block in content
+func pemBytes(t *testing.T, content []byte) []byte {
+	t.Helper()
+	block, _ := pem.Decode(content)
+	if block == nil {
+		t.Fatal("Failed to decode the PEM block")
+	}
+	return block.Bytes
 }
