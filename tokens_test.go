@@ -126,6 +126,30 @@ func TestKeyfuncRefusesNoKidEvenForAnEmptyID(t *testing.T) {
 	}
 }
 
+// Given an HS256 token, and a key function that returns the key for any algorithm
+// When it is parsed with and without OnlyEdDSA
+// Then OnlyEdDSA refuses it before asking for a key, and without it the token is accepted
+func TestOnlyEdDSARefusesOtherAlgorithms(t *testing.T) {
+	secret := []byte("a shared secret of at least 32 bytes")
+	tokenString := sign(t, jwt.SigningMethodHS256, secret, "")
+	asked := false
+	anyKey := func(*jwt.Token) (any, error) {
+		asked = true
+		return secret, nil
+	}
+
+	if _, err := jwt.Parse(tokenString, anyKey); err != nil {
+		t.Fatalf("Expected the token to be accepted without OnlyEdDSA, got %v", err)
+	}
+	asked = false
+	if _, err := jwt.Parse(tokenString, anyKey, OnlyEdDSA()); !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+		t.Errorf("Expected OnlyEdDSA to refuse HS256, got %v", err)
+	}
+	if asked {
+		t.Error("Expected OnlyEdDSA to refuse the token before asking for a key")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
